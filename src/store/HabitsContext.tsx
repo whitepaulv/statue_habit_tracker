@@ -9,6 +9,8 @@ function makeId() {
   return 'h_' + Math.random().toString(36).slice(2, 10);
 }
 
+const MAX_NAME_LEN = 25;
+
 type State = DB;
 type Action =
   | { type: 'LOAD'; payload: DB }
@@ -24,21 +26,33 @@ function reducer(state: State, action: Action): State {
 
     case 'ADD_HABIT': {
       const name = action.name.trim();
-      if (!name) return state; // ignore empty
+      if (!name || name.length > MAX_NAME_LEN) return state;
+
+      // prevent duplicates (case-insensitive)
+      const exists = state.habits.some(h => h.name.trim().toLowerCase() === name.toLowerCase());
+      if (exists) return state;
+
       const id = makeId();
       const newHabit: Habit = {
         id,
         name,
-        color: action.color,
+        color: action.color, // persist chosen color
         createdAt: new Date().toISOString(),
       };
       return { ...state, habits: [...state.habits, newHabit] };
     }
 
     case 'RENAME_HABIT': {
-      const habits = state.habits.map(h =>
-        h.id === action.id ? { ...h, name: action.name } : h
+      const next = action.name.trim();
+      if (!next || next.length > MAX_NAME_LEN) return state;
+
+      // prevent duplicates (case-insensitive), excluding this habit
+      const exists = state.habits.some(
+        h => h.id !== action.id && h.name.trim().toLowerCase() === next.toLowerCase()
       );
+      if (exists) return state;
+
+      const habits = state.habits.map(h => (h.id === action.id ? { ...h, name: next } : h));
       return { ...state, habits };
     }
 
@@ -50,15 +64,11 @@ function reducer(state: State, action: Action): State {
 
     case 'TOGGLE_COMPLETE_TODAY': {
       const date = action.date ?? todayISO();
-      const idx = state.completions.findIndex(
-        c => c.habitId === action.id && c.date === date
-      );
+      const idx = state.completions.findIndex(c => c.habitId === action.id && c.date === date);
       let completions: Completion[];
       if (idx >= 0) {
         // was completed -> uncomplete
-        completions = state.completions
-          .slice(0, idx)
-          .concat(state.completions.slice(idx + 1));
+        completions = state.completions.slice(0, idx).concat(state.completions.slice(idx + 1));
       } else {
         completions = [...state.completions, { habitId: action.id, date }];
       }
@@ -105,17 +115,20 @@ export function HabitsProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [state]);
 
-  const value = useMemo<Ctx>(() => ({
-    state,
-    addHabit: (name, color) => dispatch({ type: 'ADD_HABIT', name, color }),
-    renameHabit: (id, name) => dispatch({ type: 'RENAME_HABIT', id, name }),
-    deleteHabit: (id) => dispatch({ type: 'DELETE_HABIT', id }),
-    toggleCompleteToday: (id, date) => dispatch({ type: 'TOGGLE_COMPLETE_TODAY', id, date }),
-    isCompleted: (id, date) => {
-      const d = date ?? todayISO();
-      return state.completions.some(c => c.habitId === id && c.date === d);
-    },
-  }), [state]);
+  const value = useMemo<Ctx>(
+    () => ({
+      state,
+      addHabit: (name, color) => dispatch({ type: 'ADD_HABIT', name, color }),
+      renameHabit: (id, name) => dispatch({ type: 'RENAME_HABIT', id, name }),
+      deleteHabit: (id) => dispatch({ type: 'DELETE_HABIT', id }),
+      toggleCompleteToday: (id, date) => dispatch({ type: 'TOGGLE_COMPLETE_TODAY', id, date }),
+      isCompleted: (id, date) => {
+        const d = date ?? todayISO();
+        return state.completions.some(c => c.habitId === id && c.date === d);
+      },
+    }),
+    [state]
+  );
 
   return <HabitsContext.Provider value={value}>{children}</HabitsContext.Provider>;
 }
