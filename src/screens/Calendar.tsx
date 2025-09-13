@@ -1,5 +1,7 @@
+// src/screens/Calendar.tsx
 import React, { useMemo, useState } from 'react';
-import { Dimensions, FlatList, Pressable, SafeAreaView, Text, View } from 'react-native';
+import { Dimensions, FlatList, Pressable, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHabits } from '../store/HabitsContext';
 import { todayISO } from '../utils/storage';
 
@@ -19,9 +21,7 @@ function isSameDay(a: Date, b: Date) {
          a.getMonth() === b.getMonth() &&
          a.getDate() === b.getDate();
 }
-function startOfDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
+function startOfDay(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 function parseISO(iso: string) {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, (m ?? 1) - 1, d ?? 1);
@@ -63,11 +63,19 @@ function buildMonthMatrix(anchor: Date): DayCell[][] {
  * Future days: forced white
  */
 function trafficLightColor(count: number, max: number) {
-  if (max <= 0) return '#f2f2f2';
-  if (count <= 0) return '#ffdddd';
-  if (count < max) return '#fff5cc';
-  return '#d9f7d9';
+  if (max <= 0) return '#F2F4F7';
+  if (count <= 0) return '#FFE5E5';
+  if (count < max) return '#FFF4CC';
+  return '#D9F7D9';
 }
+
+// ===== Design tokens (match Habits) =====
+const SURFACE   = '#F2F4F7';
+const CARD_BG   = '#FFFFFF';
+const INK       = '#0F172A';
+const MUTED     = '#6B7280';
+const BORDER    = 'rgba(15,23,42,0.08)';
+const RADIUS    = 14;
 
 // ----- Grid sizing: 20% smaller than natural full-width cells -----
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -135,207 +143,236 @@ export default function Calendar() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-      {/* Header with larger arrows + title */}
-      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Pressable
-          onPress={() => setMonth(m => addMonths(m, -1))}
+    <View style={{ flex: 1, backgroundColor: SURFACE }}>
+      {/* Top safe area with unified SURFACE + solid header (thicker divider, big title) */}
+      <SafeAreaView edges={['top']} style={{ backgroundColor: SURFACE }}>
+        <View
           style={{
-            width: 48, height: 48, borderRadius: 12,
-            backgroundColor: '#f2f2f2', alignItems: 'center', justifyContent: 'center',
-            borderWidth: 1, borderColor: '#e5e5e5',
+            backgroundColor: SURFACE,
+            paddingVertical: 14,
+            paddingHorizontal: 16,
+            borderBottomWidth: 2,
+            borderBottomColor: BORDER,
           }}
-          accessibilityRole="button"
-          accessibilityLabel="Previous month"
         >
-          <Text style={{ fontSize: 26, fontWeight: '700' }}>{'‹'}</Text>
-        </Pressable>
-
-        <Text style={{ fontSize: 28, fontWeight: '800' }}>{title}</Text>
-
-        <Pressable
-          onPress={() => setMonth(m => addMonths(m, +1))}
-          style={{
-            width: 48, height: 48, borderRadius: 12,
-            backgroundColor: '#f2f2f2', alignItems: 'center', justifyContent: 'center',
-            borderWidth: 1, borderColor: '#e5e5e5',
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Next month"
-        >
-          <Text style={{ fontSize: 26, fontWeight: '700' }}>{'›'}</Text>
-        </Pressable>
-      </View>
-
-      {/* Weekday labels (centered) */}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignSelf: 'center',
-          width: GRID_CONTAINER_WIDTH,
-          paddingHorizontal: GRID_HPAD,
-          paddingBottom: 6,
-          gap: GRID_GAP,
-          justifyContent: 'center',
-        }}
-      >
-        {weekdayLabels.map((w) => (
-          <View key={w} style={{ width: CELL, alignItems: 'center', paddingVertical: 6 }}>
-            <Text style={{ fontSize: 12, color: '#666', fontWeight: '600' }}>{w}</Text>
-          </View>
-        ))}
-      </View>
-
-      {/* Month grid (centered, fixed cell sizes) */}
-      <View style={{ alignSelf: 'center', width: GRID_CONTAINER_WIDTH, paddingHorizontal: GRID_HPAD, gap: GRID_GAP }}>
-        {matrix.map((week, wi) => (
-          <View key={wi} style={{ flexDirection: 'row', gap: GRID_GAP, justifyContent: 'center' }}>
-            {week.map((cell) => {
-              const iso = isoFromDate(cell.date);
-              const count = completionCountByISO.get(iso) ?? 0;
-
-              const isFuture = startOfDay(cell.date).getTime() > TODAY_START.getTime();
-              const bg = isFuture ? '#ffffff' : trafficLightColor(count, maxHabits);
-
-              const dim = cell.inMonth ? 1 : 0.35;
-              const isTodayCell = isSameDay(cell.date, TODAY);
-              const isSelected = selectedISO === iso;
-
-              return (
-                <Pressable
-                  key={iso}
-                  disabled={isFuture}                       // ⛔️ can't click future days
-                  onPress={() => setSelectedISO(iso)}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: isFuture }}
-                  style={{
-                    width: CELL,
-                    height: CELL,
-                    borderRadius: 12,
-                    borderWidth: isSelected ? 3 : (isTodayCell ? 2 : 1),
-                    borderColor: isSelected ? '#111' : (isTodayCell ? '#2b7' : '#e3e3e3'),
-                    backgroundColor: bg,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 4,
-                    opacity: isFuture ? 0.9 : 1,          // subtle visual cue
-                    shadowColor: '#000',
-                    shadowOpacity: 0.05,
-                    shadowRadius: 3,
-                    shadowOffset: { width: 0, height: 1 },
-                  }}
-                >
-                  <Text style={{ fontSize: 18, fontWeight: '700', opacity: dim }}>
-                    {cell.date.getDate()}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
-      </View>
-
-      {/* Legend */}
-      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 10 }}>
-        <Legend color="#ffdddd" label="Missed" />
-        <Legend color="#fff5cc" label="Partial" />
-        <Legend color="#d9f7d9" label="Complete" />
-      </View>
-
-      {/* Bold divider */}
-      <View style={{ height: 2, backgroundColor: '#000', marginTop: 12, marginHorizontal: 16 }} />
-
-      {/* SELECTED DAY PANEL */}
-      <View style={{ flex: 1, marginTop: 16, paddingHorizontal: 16, paddingBottom: 16 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Text style={{ fontSize: 18, fontWeight: '800' }}>
-            {selectedNice}
+          <Text style={{ fontSize: 40, fontWeight: '800', color: INK, textAlign: 'center' }}>
+            Calendar
           </Text>
+        </View>
+      </SafeAreaView>
 
-          {habits.length > 0 && (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pressable
-                onPress={() => markAll(selectedISO, true)}
-                style={{ paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1, borderRadius: 8, backgroundColor: '#eef9ee' }}
-              >
-                <Text style={{ fontWeight: '600' }}>Mark all</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => markAll(selectedISO, false)}
-                style={{ paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1, borderRadius: 8, backgroundColor: '#fff' }}
-              >
-                <Text style={{ fontWeight: '600' }}>Clear all</Text>
-              </Pressable>
-            </View>
-          )}
+      {/* Main content safe areas */}
+      <SafeAreaView edges={['left','right','bottom']} style={{ flex: 1 }}>
+        {/* Month controls */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <PillButton label="‹" onPress={() => setMonth(m => addMonths(m, -1))} accessibilityLabel="Previous month" />
+          <Text style={{ fontSize: 24, fontWeight: '800', color: INK }}>{title}</Text>
+          <PillButton label="›" onPress={() => setMonth(m => addMonths(m, +1))} accessibilityLabel="Next month" />
         </View>
 
-        {habits.length === 0 ? (
-          <Text style={{ color: '#666' }}>No habits yet — add some on the Habits tab.</Text>
-        ) : (
-          <FlatList
-            style={{ flex: 1 }}                               // take remaining space
-            contentContainerStyle={{ paddingBottom: 24 }}      // breathing room at bottom
-            data={habits}
-            keyExtractor={(h) => h.id}
-            ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-            // Web-like scroll behavior
-            bounces={false}
-            alwaysBounceVertical={false}
-            overScrollMode="never"
-            decelerationRate="normal"
-            showsVerticalScrollIndicator
-            contentInsetAdjustmentBehavior="never"
-            keyboardShouldPersistTaps="handled"
-            renderItem={({ item }) => {
-              const done = isCompleted(item.id, selectedISO);
+        {/* Weekday labels (centered) */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignSelf: 'center',
+            width: GRID_CONTAINER_WIDTH,
+            paddingHorizontal: GRID_HPAD,
+            paddingBottom: 6,
+            gap: GRID_GAP,
+            justifyContent: 'center',
+          }}
+        >
+          {weekdayLabels.map((w) => (
+            <View key={w} style={{ width: CELL, alignItems: 'center', paddingVertical: 6 }}>
+              <Text style={{ fontSize: 12, color: MUTED, fontWeight: '700' }}>{w}</Text>
+            </View>
+          ))}
+        </View>
 
-              return (
-                <Pressable
-                  onPress={() => toggleCompleteToday(item.id, selectedISO)}  // tap anywhere toggles
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: 12,
-                    borderWidth: 1,
-                    borderRadius: 12,
-                    backgroundColor: done ? '#bdf7bd' : '#fff',   // whole row turns green
-                    borderColor: done ? '#9ad89a' : '#ccc',
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Toggle ${item.name} for ${selectedNice}`}
-                >
-                  {/* visual checkbox */}
-                  <View
-                    pointerEvents="none"
+        {/* Month grid (centered, fixed cell sizes) */}
+        <View style={{ alignSelf: 'center', width: GRID_CONTAINER_WIDTH, paddingHorizontal: GRID_HPAD, gap: GRID_GAP }}>
+          {matrix.map((week, wi) => (
+            <View key={wi} style={{ flexDirection: 'row', gap: GRID_GAP, justifyContent: 'center' }}>
+              {week.map((cell) => {
+                const iso = isoFromDate(cell.date);
+                const count = completionCountByISO.get(iso) ?? 0;
+
+                const isFuture = startOfDay(cell.date).getTime() > TODAY_START.getTime();
+                const bg = isFuture ? CARD_BG : trafficLightColor(count, maxHabits);
+
+                const dim = cell.inMonth ? 1 : 0.38;
+                const isTodayCell = isSameDay(cell.date, TODAY);
+                const isSelected = selectedISO === iso;
+
+                return (
+                  <Pressable
+                    key={iso}
+                    disabled={isFuture}                       // ⛔️ can't click future days
+                    onPress={() => setSelectedISO(iso)}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: isFuture }}
                     style={{
-                      width: 28, height: 28, borderRadius: 6, borderWidth: 1,
-                      alignItems: 'center', justifyContent: 'center',
-                      backgroundColor: done ? '#bdf7bd' : 'transparent',
-                      borderColor: done ? '#7bc47b' : '#aaa',
+                      width: CELL,
+                      height: CELL,
+                      borderRadius: 12,
+                      borderWidth: isSelected ? 3 : (isTodayCell ? 2 : 1),
+                      borderColor: isSelected ? '#111' : (isTodayCell ? '#16A34A' : BORDER),
+                      backgroundColor: bg,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 4,
+                      opacity: isFuture ? 0.9 : 1,          // subtle visual cue
+                      shadowColor: '#000',
+                      shadowOpacity: 0.05,
+                      shadowRadius: 3,
+                      shadowOffset: { width: 0, height: 1 },
                     }}
                   >
-                    <Text>{done ? '✅' : ''}</Text>
-                  </View>
+                    <Text style={{ fontSize: 18, fontWeight: '800', color: INK, opacity: dim }}>
+                      {cell.date.getDate()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </View>
 
-                  {/* habit name */}
-                  <Text style={{ flex: 1, fontSize: 16 }}>{item.name}</Text>
-                </Pressable>
-              );
-            }}
-          />
-        )}
-      </View>
-    </SafeAreaView>
+        {/* Legend */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 12 }}>
+          <Legend color="#FFE5E5" label="Missed" />
+          <Legend color="#FFF4CC" label="Partial" />
+          <Legend color="#D9F7D9" label="Complete" />
+        </View>
+
+        {/* Subtle divider (matches style language) */}
+        <View style={{ height: 2, backgroundColor: BORDER, marginTop: 12, marginHorizontal: 16, borderRadius: 1 }} />
+
+        {/* SELECTED DAY PANEL (card-like, smooth scroll) */}
+        <View style={{ flex: 1, marginTop: 16, paddingHorizontal: 16, paddingBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: INK }}>
+              {selectedNice}
+            </Text>
+
+            {habits.length > 0 && (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <PillButton label="Mark all" onPress={() => markAll(selectedISO, true)} />
+                <PillButton label="Clear all" onPress={() => markAll(selectedISO, false)} variant="secondary" />
+              </View>
+            )}
+          </View>
+
+          {habits.length === 0 ? (
+            <Text style={{ color: MUTED }}>No habits yet — add some on the Habits tab.</Text>
+          ) : (
+            <FlatList
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              data={habits}
+              keyExtractor={(h) => h.id}
+              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+              // Web-like scroll behavior
+              bounces={false}
+              alwaysBounceVertical={false}
+              overScrollMode="never"
+              decelerationRate="normal"
+              showsVerticalScrollIndicator
+              contentInsetAdjustmentBehavior="never"
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => {
+                const done = isCompleted(item.id, selectedISO);
+
+                return (
+                  <Pressable
+                    onPress={() => toggleCompleteToday(item.id, selectedISO)}  // tap anywhere toggles
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: 12,
+                      borderWidth: 1,
+                      borderRadius: RADIUS,
+                      backgroundColor: done ? 'rgba(34,197,94,0.08)' : CARD_BG,
+                      borderColor: done ? 'rgba(22,163,74,0.35)' : BORDER,
+                      shadowColor: '#000',
+                      shadowOpacity: 0.04,
+                      shadowRadius: 8,
+                      shadowOffset: { width: 0, height: 3 },
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Toggle ${item.name} for ${selectedNice}`}
+                  >
+                    {/* visual checkbox */}
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        width: 28, height: 28, borderRadius: 6, borderWidth: 1,
+                        alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: done ? 'rgba(34,197,94,0.1)' : 'transparent',
+                        borderColor: done ? 'rgba(22,163,74,0.5)' : 'rgba(0,0,0,0.2)',
+                      }}
+                    >
+                      <Text>{done ? '✅' : ''}</Text>
+                    </View>
+
+                    {/* habit name */}
+                    <Text style={{ flex: 1, fontSize: 16, color: INK }}>{item.name}</Text>
+                  </Pressable>
+                );
+              }}
+            />
+          )}
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+function PillButton({
+  label,
+  onPress,
+  accessibilityLabel,
+  variant = 'primary',
+}: {
+  label: string;
+  onPress: () => void;
+  accessibilityLabel?: string;
+  variant?: 'primary' | 'secondary';
+}) {
+  const bg = variant === 'primary' ? '#FFFFFF' : '#FFFFFF';
+  const border = variant === 'primary' ? BORDER : BORDER;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      style={{
+        minWidth: 48,
+        height: 40,
+        paddingHorizontal: 12,
+        borderRadius: 12,
+        backgroundColor: bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: border,
+        shadowColor: '#000',
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+      }}
+    >
+      <Text style={{ fontSize: 16, fontWeight: '800', color: INK }}>{label}</Text>
+    </Pressable>
   );
 }
 
 function Legend({ color, label }: { color: string; label: string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      <View style={{ width: 14, height: 14, borderRadius: 4, backgroundColor: color, borderWidth: 1, borderColor: '#ddd' }} />
-      <Text style={{ fontSize: 12, color: '#666' }}>{label}</Text>
+      <View style={{ width: 14, height: 14, borderRadius: 4, backgroundColor: color, borderWidth: 1, borderColor: BORDER }} />
+      <Text style={{ fontSize: 12, color: MUTED }}>{label}</Text>
     </View>
   );
 }
