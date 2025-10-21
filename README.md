@@ -1,4 +1,4 @@
-# Welcome to your Expo app 👋
+# Welcome to your Expo app 
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
@@ -24,4 +24,4 @@ The concepts, ideas, and user interface were designed by myself. AI was used as 
 implement the design concepts. 
 
 The project is mostly complete, but I intend to add a few more features in the future.
-I thoroughly enjoy working on this passion project and I hope you do too! 
+I thoroughly enjoy working on this passion project and I hope you enjoy looking at it! 
